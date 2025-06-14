@@ -1,0 +1,6 @@
+{
+    "sonarlint.connectedMode.project": {
+        "connectionId": "Monster Connect",
+        "projectKey": "monsterconnect_dotnetcore"
+    }
+}
