@@ -1,0 +1,156 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} '
+            cd /opt/opensearch-mvp && \
+            git pull origin main && \
+            docker-compose -f docker-compose.web.yml down && \
+            docker-compose -f docker-compose.web.yml up -d --build && \
+            docker-compose -f docker-compose.web.yml exec -T nextjs-app npx prisma migrate deploy
+          ' 
+
+      - name: Create directory and clone repository
+        run: |
+          mkdir -p /opt/opensearch-mvp
+          cd /opt/opensearch-mvp
+          git clone https://github.com/nutthakorn7/opensearch-mvp.git .
+
+      - name: Set up environment variables
+        run: |
+          cat > .env << EOL
+          JWT_SECRET=your-secure-secret
+          OPENSEARCH_URL=http://localhost:9200
+          DATABASE_URL=postgresql://opensearch:opensearch@postgres:5432/opensearch
+          REDIS_URL=redis://redis:6379
+          POSTGRES_USER=opensearch
+          POSTGRES_PASSWORD=opensearch
+          POSTGRES_DB=opensearch
+          EOL
+
+      - name: Set up local environment variables
+        run: |
+          cat > .env.local << EOL
+          JWT_SECRET=your-secure-secret
+          OPENSEARCH_URL=http://localhost:9200
+          OPENSEARCH_USER=admin
+          OPENSEARCH_PASS=admin
+          EOL
+
+      - name: Start services
+        run: |
+          docker-compose -f docker-compose.opensearch.yml up -d
+          sleep 30
+          docker-compose -f docker-compose.web.yml up -d
+
+      - name: Check port status
+        run: |
+          sudo ufw status
+
+      - name: Allow necessary ports
+        run: |
+          sudo ufw allow 22/tcp  # SSH
+          sudo ufw allow 3000/tcp  # Web Application
+          sudo ufw allow 9200/tcp  # OpenSearch 
+
+      - name: Test deployment
+        run: |
+          echo "Testing deployment" >> README.md
+          git add README.md
+          git commit -m "Test deployment"
+          git push origin main 
+
+      - name: Build and start services
+        run: |
+          docker-compose up --build -d
+
+      - name: Check logs
+        run: |
+          docker-compose logs -f 
+
+      - name: Test OpenSearch
+        run: |
+          curl http://localhost:9200
+
+      - name: Test Web Application
+        run: |
+          curl http://localhost:3000 
+
+      - name: Create monitoring script
+        run: |
+          cat > scripts/monitor.sh << EOL
+          #!/bin/bash
+
+          echo "=== Checking OpenSearch Status ==="
+          curl -s http://localhost:9200/_cluster/health | jq '.'
+
+          echo -e "\n=== Checking Docker Containers ==="
+          docker ps
+
+          echo -e "\n=== Checking Application Logs ==="
+          docker-compose logs --tail=20
+          EOL
+
+      - name: Set up monitoring script
+        run: |
+          chmod +x scripts/monitor.sh 
+
+      - name: Create backup script
+        run: |
+          cat > scripts/backup.sh << EOL
+          #!/bin/bash
+          BACKUP_DIR="/opt/backups"
+          DATE=\$(date +%Y%m%d_%H%M%S)
+
+          # Create backup directory
+          mkdir -p \$BACKUP_DIR
+
+          # Backup OpenSearch data
+          docker-compose down
+          tar -czf \$BACKUP_DIR/opensearch_\$DATE.tar.gz /opt/opensearch-mvp/opensearch-data*
+          docker-compose up -d
+
+          # Keep only last 7 days of backups
+          find \$BACKUP_DIR -type f -mtime +7 -delete
+          EOL
+
+      - name: Set up backup script
+        run: |
+          chmod +x scripts/backup.sh
+
+      - name: Set up cron job
+        run: |
+          sudo crontab -e
+          # เพิ่มบรรทัด: 0 1 * * * /opt/opensearch-mvp/scripts/backup.sh 
+
+      - name: Add all files
+        run: |
+          git add .
+
+      - name: Commit all files
+        run: |
+          git commit -m "Initial commit"
+
+      - name: Push all files
+        run: |
+          git push -u origin main 

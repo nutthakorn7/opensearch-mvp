@@ -1,0 +1,95 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String
+  role          String    @default("user")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  savedSearches SavedSearch[]
+  alerts        Alert[]
+  reports       Report[]
+  visualizations Visualization[]
+  fieldExtractions FieldExtraction[]
+}
+
+model SavedSearch {
+  id          String    @id @default(cuid())
+  name        String
+  query       String
+  timeRange   String
+  isPublic    Boolean   @default(false)
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [createdBy], references: [email])
+}
+
+model Alert {
+  id          String    @id @default(cuid())
+  name        String
+  condition   String
+  threshold   Int
+  timeWindow  String
+  actions     Json
+  isActive    Boolean   @default(true)
+  isPublic    Boolean   @default(false)
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [createdBy], references: [email])
+}
+
+model Report {
+  id          String    @id @default(cuid())
+  name        String
+  query       String
+  timeRange   String
+  schedule    String
+  format      String
+  recipients  String[]
+  isPublic    Boolean   @default(false)
+  createdBy   String
+  lastRun     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [createdBy], references: [email])
+}
+
+model Visualization {
+  id          String    @id @default(cuid())
+  name        String
+  type        String
+  query       String
+  timeRange   String
+  config      Json
+  isPublic    Boolean   @default(false)
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [createdBy], references: [email])
+}
+
+model FieldExtraction {
+  id          String    @id @default(cuid())
+  name        String
+  sourceField String
+  pattern     String
+  targetField String
+  description String?
+  isActive    Boolean   @default(true)
+  isPublic    Boolean   @default(false)
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [createdBy], references: [email])
+} 

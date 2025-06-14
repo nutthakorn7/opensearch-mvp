@@ -1,6 +1,5 @@
 version: '3.8'
 services:
-  # OpenSearch Cluster
   opensearch-node1:
     image: opensearchproject/opensearch:2.13.0
     environment:
@@ -41,54 +40,10 @@ services:
     networks:
       - opensearch-net
 
-  # Web Application
-  nextjs-app:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - JWT_SECRET=changeme-secret
-      - OPENSEARCH_URL=http://opensearch-node1:9200
-      - DATABASE_URL=postgresql://opensearch:opensearch@postgres:5432/opensearch
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - postgres
-      - redis
-    networks:
-      - app-net
-
-  # Database
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: opensearch
-      POSTGRES_PASSWORD: opensearch
-      POSTGRES_DB: opensearch
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    networks:
-      - app-net
-
-  # Cache
-  redis:
-    image: redis:7
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    networks:
-      - app-net
-
 networks:
   opensearch-net:
-    driver: bridge
-  app-net:
     driver: bridge
 
 volumes:
   opensearch-data1:
-  opensearch-data2:
-  postgres-data:
-  redis-data:
+  opensearch-data2: 
